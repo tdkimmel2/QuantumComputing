@@ -2,6 +2,7 @@
 from qiskit import QuantumCircuit, transpile
 from qiskit_aer import AerSimulator
 from matplotlib.pyplot import draw, show
+from qiskit.visualization import plot_histogram
 qc = QuantumCircuit(3)
 qc.h(0)
 qc.cx(0, [1, 2])
@@ -31,7 +32,7 @@ result = job.result()
 # 4. Plot the results
 #distribution = result.get_counts(compiled_circuit)
 distribution = result.get_counts()
-from qiskit.visualization import plot_histogram
+
 plot_histogram(distribution)
 draw()
 show()
