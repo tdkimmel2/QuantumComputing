@@ -1,7 +1,0 @@
-muparserx
-python-pygraphviz
-python-pylatexenc
-python-qiskit
-python-qiskit-aer
-python-qiskit-aer-gpu
-python-rustworkx
