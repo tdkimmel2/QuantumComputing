@@ -1,0 +1,309 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{enumitem}
+\usepackage{dsfont}
+\usepackage{listings}
+\usepackage{xurl} % Breaks up urls to multiple lines, prevents overfull hbox warning
+\usepackage{hyperref}
+\usepackage{pythonhighlight}
+
+\lstset{breaklines=true} % Break lines in listings
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=cyan,
+}
+\newcommand{\ms}{\medskip}
+\newcommand{\bs}{\bigskip}
+
+
+\newlength{\tindent}
+\setlength{\tindent}{\parindent}
+\setlength{\parindent}{0pt}
+\renewcommand{\indent}{\hspace*{\tindent}}
+
+\usepackage{tabularx}
+\newcolumntype{Y}{>{\centering\arraybackslash}X}
+
+\title{Qiskit Summer School 2024 Notes}
+\author{Taylor Kimmel}
+
+\begin{document}
+
+\maketitle
+\tableofcontents
+
+
+\section*{First Steps}
+\label{s:firstSteps}\addcontentsline{toc}{section}{First Steps}
+
+\textbf{Youtube Playlist of the Summer School:}\\
+\url{https://www.youtube.com/playlist?list=PLOFEBzvs-Vvr-GzDWlZpAcDpki5jUqYJu}\ms
+
+\textbf{Get Qiskit Installed:}\\
+\url{https://docs.quantum.ibm.com/guides/install-qiskit}\\
+\textbf{Get IBM Setup:}\\
+\url{https://docs.quantum.ibm.com/guides/setup-channel}\ms
+
+TestSetup.py - Makes sure that you can connect to IBM and get a result
+
+\section*{Optimize for Hardware}
+\label{s:optimize}\addcontentsline{toc}{section}{Optimize for Hardware}
+
+%Required - \hyperref[ss:transpile]{transpile}: abstracts the quantum circuit into a circuit that can run on target hardware\\
+Required - \textit{transpile}[\nameref{ss:transpile}]: abstracts the quantum circuit into a circuit that can run on target hardware\\
+Optional - \textit{verify}[\nameref{ss:verify}] circuit with simulation
+
+\ms
+
+Real quantum device constraints:\\
+Basis Gate Set\\
+    \indent Only a limited set of gates can be executed directly on the hardware\\
+    \indent Other gates must be rewritten in terms of these basis gates\ms
+
+Qubit connectivity\\
+    \indent Only certain pairs of qubits can be directly interacted with each other\ms
+
+Errors\\
+    \indent Each operation has a chance of error, so circuit optimizations can greatly affect performance\ms
+
+Challenge is running abstract circuit on a specific quantum device.\\
+The solution is \textbf{transpilation} - convert abstract circuit into ISA (instruction set architecture) circuit
+
+\subsection*{Transpilation}
+\label{ss:transpile}\addcontentsline{toc}{subsection}{Transpilation}
+
+\textbf{Transpilation Terms:}\\
+\begin{tabularx}{\textwidth}{ | >{\hsize=0.5\hsize}Y | Y | >{\hsize=0.5\hsize}Y | }
+    \hline
+    Term & Definition & Orchestra Analogy \\
+    \hline
+    Pass & A standalone circuit or metadata transformation & An instrument \\
+    \hline
+    Pass Manager & A list of transpiler passes grouped into a logical unit & An instrument section \\
+    \hline
+    Staged Pass Manager & A list of pass managers, with each one representing a discrete stage of atranspilation pipeline & The conductor \\
+    \hline
+\end{tabularx}\bs
+
+Transpile a Circuit with Qiskit SDK:
+\begin{enumerate}
+\item  Choose which device backend you want to target
+\item  Create a preset staged pass manager with your desired optimization level
+\item  Run the staged pass manager on the circuit
+\end{enumerate}
+
+\textbf{Python Code:}
+
+\begin{python}
+service = QiskitRuntimeService()  
+backend = service.backend("ibm_brisbane")  
+pass_manager = generate_preset_pass_manager(optimization_level=3, backend=backend)  
+isa_circuit = pass_manager.run(circuit)
+\end{python}
+
+\textbf{Transpiler Stages:}
+\begin{enumerate}
+    \item Initialization\\
+        \indent The circuit is prepared for transpilation, e.g., multi-qubit gates are decomposed into two-qubit gates
+    \item Layout\\
+        \indent The abstract qubits of the circuit are mapped to the physical qubits on the device
+    \item Routing\\
+        \indent Swap gates are inserted to enable interactions between qubits that are not physically connected
+    \item Translation\\
+        \indent The gates of the circuit are translated to the basis gate set of the device
+    \item Optimization\\
+        \indent The circuit is rewritten to minimize its depth (\# of operations) to decrease the effect of errors
+    \item Scheduling\\
+        \indent Delay instructions are added to align the circuit with the hardware's timing
+\end{enumerate}
+
+\subsection*{Verification}
+\label{ss:verify}\addcontentsline{toc}{subsection}{Verification}
+\textbf{Simulation Tools}
+\begin{itemize}
+    \item[] Qiskit SDK reference primitives. Exact simulation, but small circuits only and no noise simulation.
+    \item[] Qiskit Runtime local testing. Provides "fake" backends to model each quantum machine.
+    \item[] Qiskit Aer. Ecosystem project for simulation, including
+        \begin{itemize}
+            \item larger circuits
+            \item stabilizer circuits
+            \item noise models
+        \end{itemize}
+\end{itemize}
+
+\textbf{Problem}: the runtime cost of simulating quantum circuits scales exponentially with the number of qubits.\\
+\indent $\sim 50+$ qubits cannot be simulated\ms
+
+Techniques for large circuits:
+\begin{enumerate}
+    \item Test smaller versions of circuit
+    \item Modify circuit so that it becomes classically simulatable: stabilizer circuit aka Clifford circuit
+\end{enumerate}
+
+\section*{Execution}
+\label{s:execute}\addcontentsline{toc}{section}{Execution}
+
+\textbf{Primitives} encapsulate the output of a quantum circuit\ms
+
+\textbf{Sampler Primitive:}\\
+Output is mapping of bitstrings to counts, e.g., $\{$`$0$'$:12,$ `$1$'$: 9\}$\ms
+
+\textbf{Estimator Primitive:}\\
+Output is the \textit{expectation value} of an \textit{observable}, e.g., the net spin of a system.\\
+Circuit should not include measurements.\ms
+
+To run a circuit on quantum hardware:
+\begin{enumerate}
+    \item Initialize the Qiskit Runtime service
+    \item Choose a hardware backend
+    \item Initialize a Qiskit Runtime primitive with your chosen backend
+    \item Invoke the primitive with your circuit
+\end{enumerate}\ms
+
+\textbf{Example Sampler Code:}
+\begin{python}
+import numpy as np
+from qiskit.circuit.library import IQP
+from qiskit.quantum_info import random_hermitian
+from qiskit_ibm_runtime import QiskitRuntimeService, SamplerV2 as Sampler
+
+service = QiskitRuntimeService()
+
+backend = service.least_busy(operational=True, simulator=False, min_num_qubits=127)
+
+n_qubits = 127
+
+mat = np.real(random_hermitian(n_qubits, seed=1234)
+circuit = IQP(mat)
+circuit.measure_all()
+
+pm = generate_preset_pass_manager(backend=backend, optimization_level=1)
+isa_circuit = pm.run(circuit)
+
+sampler = Sampler(backend)
+job = sampler.run([isa_circuit])
+result = job.result()
+\end{python}\ms
+
+The input to the Estimator primitive is a list of \textit{primitive unified blocs (PUBs)}. Each PUB consists of:
+\begin{itemize}
+    \item A single circuit without measurements
+    \item One or more observables
+    \item (Optional) One or more parameter values
+\end{itemize}
+
+\textbf{Example Estimator Code:}
+\begin{python}
+import numpy as np
+from qiskit.circuit.library import IQP
+from qiskit.transpiler.preset_passmanagers import generate_preset_pass_manager
+from qiskit.quantum_info import SparsePauliOp, random_hermitian
+from qiskit_ibm_runtime import QiskitRuntimeService, EstimatorV2 as Estimator
+
+service = QiskitRuntimeService()
+backend = service.least_busy(operational=True, simulator=False, min_num_qubits=127)
+estimator = Estimator(backend)
+
+n_qubits = 127
+
+mat = np.real(random_hermitian(n_qubits, seed=1234)
+circuit = IQP(mat)
+observable = SparsePauliOp("Z" * n_qubits)
+
+pm = generate_preset_pass_manager(backend=backend, optimization_level=1)
+isa_circuit = pm.run(circuit)
+isa_observable = observable.apply_layout(isa_circuit.layout)
+
+job = estimator.run([isa_circuit, isa_observable])
+result = job.result()
+
+print(f" > Expectation value: {result[0].data.evs}")
+print(f" > Metadata: {result[0].metadata}")
+\end{python}\bs
+
+You can customize Qiskit Runtime behaviour\ms
+
+\textbf{Shots}\\
+The number of measurements.\\
+More shots reduce statistical error but increase running time.\ms
+
+\textbf{Error Suppression}\\
+Use dynamical decoupling to reduce decoherence during execution.\\
+Caveat: requires delays between gate executions, so it's not always possible.\ms
+
+\textbf{Error Mitigation}\\
+Reduce the effects of device noise after execution.
+\begin{itemize}
+    \item Twirled Readout Error eXtinction (TREX) measurement twirling
+    \item Zero Noise Extrapolation (ZNE)
+\end{itemize}
+Downside: computational overhead\ms
+
+Execution Modes:
+\begin{itemize}
+    \item Single job
+    \item Batch: multiple concurrent jobs
+    \item Session: iterative workload
+\end{itemize}\ms
+
+Benefits of batch mode versus a single job with multiple circuits:
+\begin{itemize}
+    \item Better concurrency of classical processing
+    \item Get individual results sooner
+\end{itemize}\ms
+
+\textbf{Batch Mode:}
+\begin{python}
+from qiskit_ibm_runtime import SamplerV2 as Sampler, Batch
+
+max_circuits = 100
+all_partitioned_circuits = []
+for i in range(0, len(circuits), max_circuits):
+    all_partitioned_circuits.append(circuits[i : i + max_circuits])
+jobs = []
+start_idx = 0
+
+with Batch(backend = backend):
+    sampler = Sampler()
+        for partitioned_circuits in all_partitioned_circuits:
+            job = sampler.run(partitioned_circuits)
+            jobs.append(job)
+\end{python}\ms
+
+Sessions allow iterative workloads, like VQE\\
+Run a job, based on result of the job send a new job\ms
+
+\textbf{Sessions:}
+\begin{python}
+from qiskit_ibm_runtime import EstimatorV2 as Estimator
+from qiskit_ibm_runtime import QiskitRuntimeService, Session
+
+# Initialize Qiskit Runtime service
+service = QiskitRuntimeService()
+backend = service.backend("ibm_brisbane")
+
+with Session(backend=backend):
+    estimator = Estimator()
+    # invoke the Estimator as usual
+\end{python}\ms
+
+\section*{Postprocessing}
+\label{s:postprocess}\addcontentsline{toc}{section}{Postprocessing}
+
+Postprocess technique: visualize results\\
+With Sampler output, use \textbf{plot\_histogram()} from \textbf{qiskit.visualizations}\ms
+
+Postprocess technique: post-selection\\
+Discard outputs known to be incorrect based on prior knowledge, e.g., if you know outputs must match a certain pattern\ms
+
+Postprocess technique: circuit knitting
+\begin{enumerate}
+    \item During the optimize for hardware step, decompose the problem into \\smaller circuits, i.e., ``circuit cutting"
+    \item Execute smaller circuits
+    \item ``Knit" the results into a reconstruction of the original circuit's outcome
+\end{enumerate}
+
+
+\end{document}
